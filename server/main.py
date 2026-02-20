@@ -45,8 +45,7 @@ def save_day_data(year, day, data):
         return False
 
 
-@app.route('/', methods=['GET'])
-@app.route('/today', methods=['GET'])
+@app.route('/data/today', methods=['GET'])
 def get_today():
     """Get today's schedule."""
     today = datetime.now()
@@ -60,7 +59,7 @@ def get_today():
     return jsonify({"date": day, "data": data}), 200
 
 
-@app.route('/day/<path:date>', methods=['GET'])
+@app.route('/data/day/<path:date>', methods=['GET'])
 def get_day(date):
     """Get schedule for a specific day.
     
@@ -79,7 +78,7 @@ def get_day(date):
     return jsonify({"date": date, "data": data}), 200
 
 
-@app.route('/day/<path:date>', methods=['POST', 'PUT'])
+@app.route('/data/day/<path:date>', methods=['POST', 'PUT'])
 def edit_day(date):
     """Create or update schedule for a specific day.
     
@@ -113,12 +112,22 @@ def health():
     """Health check endpoint."""
     return jsonify({"status": "ok"}), 200
 
+@app.route('/')
+@app.route('/status')
+def index():
+    """Serve the React status display."""
+    return send_file(BASE_DIR / "editor" / "dist" / "index.html")
+
+@app.route('/calendar', methods=['GET'])
+def get_calendar_display():
+    """Serve the React calendar display."""
+    return send_file(BASE_DIR / "editor" / "dist" / "calendar.html")
 
 @app.route('/editor')
 @app.route('/editor/')
 def editor_index():
     """Serve the React editor app."""
-    return send_file(BASE_DIR / "editor" / "dist" / "index.html")
+    return send_file(BASE_DIR / "editor" / "dist" / "editor.html")
 
 
 @app.route('/editor/<path:path>')
@@ -127,8 +136,8 @@ def editor_static(path):
     try:
         return send_from_directory(BASE_DIR / "editor" / "dist", path)
     except NotFound:
-        # For client-side routing, serve index.html
-        return send_file(BASE_DIR / "editor" / "dist" / "index.html")
+        # For client-side routing, serve editor.html
+        return send_file(BASE_DIR / "editor" / "dist" / "editor.html")
 
 
 @app.errorhandler(404)
@@ -144,4 +153,4 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
