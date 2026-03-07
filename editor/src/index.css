@@ -16,6 +16,11 @@
     src: url('./assets/font/AvenirNext-Medium-06.ttf') format('opentype');
 }
 
+@font-face {
+  font-family: 'AvenirNextRegular';
+  src: url('./assets/font/AvenirNext-Regular-08.ttf') format('opentype');
+}
+
 :root {
   font-family: AvenirNextMedium, system-ui;
   line-height: 1.5;
