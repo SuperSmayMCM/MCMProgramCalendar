@@ -117,7 +117,6 @@ const calendarPageDotActiveStyle = {
     width: '0.5em', height: '0.5em', borderRadius: '50%', backgroundColor: '#434b4c', opacity: 0.75
 }
 
-
 function CalendarPage({ previewDate = '', previewSchedule = null }) {
     const [schedule, setSchedule] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
@@ -254,11 +253,11 @@ function buildTimeAndLocationString(program) {
         sections.push('All Day');
     }
     else if (program.startTime && program.endTime) {
-        sections.push(`${program.startTime} – ${program.endTime}`);
+        sections.push(`${formatTime(program.startTime)} – ${formatTime(program.endTime)}`);
     } else if (program.startTime) {
-        sections.push(program.startTime);
+        sections.push(formatTime(program.startTime));
     } else if (program.endTime) {
-        sections.push(`Open – ${program.endTime}`);
+        sections.push(`Open – ${formatTime(program.endTime)}`);
     }
 
     if (program.location) {
@@ -288,5 +287,14 @@ function getFloorIcon(icon) {
             return null; // or a default icon
     }
 }
+
+const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':');
+    const hInt = parseInt(h, 10);
+    const ampm = hInt >= 12 ? 'PM' : 'AM';
+    const hour = hInt % 12 || 12; // Converts "00" to "12" and "13" to "1"
+    return `${hour}:${m} ${ampm}`;
+  };
 
 export default CalendarPage

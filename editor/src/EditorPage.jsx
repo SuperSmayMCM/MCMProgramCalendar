@@ -27,6 +27,8 @@ export default function ProgramEditor() {
   const [statusMessage, setStatusMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  function selectedDatePath(dateValue) { return dateValue == "default" ? `/data/default` : `/data/day/${dateValue}` }
+
   // --- Data Fetching ---
   useEffect(() => {
     const fetchDayData = async () => {
@@ -34,7 +36,7 @@ export default function ProgramEditor() {
       setStatusMessage('');
 
       try {
-        const response = await fetch(`/data/day/${selectedDate}`);
+        const response = await fetch(selectedDatePath(selectedDate));
         if (response.ok) {
           const result = await response.json();
           // Assuming your backend saves the array directly as 'data'
@@ -63,7 +65,7 @@ export default function ProgramEditor() {
 
     setPrograms([
       ...programs,
-      { name: '', location: '', startTime: '', endTime: '', icon: defaultIconKey }
+      { name: '', location: '', startTime: '', endTime: '', icon: defaultIconKey, allDay: false }
     ]);
   };
 
@@ -80,8 +82,8 @@ export default function ProgramEditor() {
   const handleSave = async () => {
     setStatusMessage('Saving...');
     try {
-      const response = await fetch(`/data/day/${selectedDate}`, {
-        method: 'PUT', // Your backend accepts POST or PUT
+      const response = await fetch(selectedDatePath(selectedDate), {
+        method: 'PUT', // Backend accepts POST or PUT
         headers: {
           'Content-Type': 'application/json',
         },
@@ -106,6 +108,7 @@ export default function ProgramEditor() {
     container: { display: 'flex', height: '100vh', fontFamily: 'sans-serif' },
     editorPanel: { flex: 1, padding: '20px', borderRight: '1px solid #ccc', overflowY: 'auto' },
     previewPanel: { flex: 1, padding: '20px', backgroundColor: '#f9fafb', overflowY: 'auto' },
+    titlebar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
     topCenter: { textAlign: 'center', marginBottom: '30px' },
     dateInput: { padding: '10px', fontSize: '1.2rem', borderRadius: '5px', border: '1px solid #ccc' },
     programCard: { border: '1px solid #eee', padding: '15px', marginBottom: '15px', borderRadius: '8px', position: 'relative' },
@@ -122,7 +125,15 @@ export default function ProgramEditor() {
     <div style={styles.container}>
       {/* LEFT COLUMN: Editor */}
       <div style={styles.editorPanel}>
+        <div style={styles.titlebar}>
+          <button style={styles.button} onClick={() => setSelectedDate("default")}>Edit Default</button>
+          <button style={styles.button} onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}>Edit Today</button>
+          <nav>
+            <a href="/">Status</a> | <a href="/calendar.html">Calendar</a> | <a href="/editor.html">Editor</a>
+          </nav>
+        </div>
         <div style={styles.topCenter}>
+
           <h2>Program Schedule Editor</h2>
           <input
             type="date"
@@ -177,9 +188,11 @@ export default function ProgramEditor() {
                     />
                   </div>
 
-                  <div style={{ ...styles.inputGroup,
+                  <div style={{
+                    ...styles.inputGroup,
                     ...(prog.allDay ? styles.disabled : {}), // Applies disabled input styles
-                    flex: 1, }}>
+                    flex: 1,
+                  }}>
                     <label>End Time</label>
                     <input
                       style={styles.input} type="time" value={prog.endTime}
