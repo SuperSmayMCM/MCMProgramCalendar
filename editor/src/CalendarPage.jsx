@@ -18,6 +18,20 @@ const testSchedule = [
     { startTime: '1', endTime: '3 pm', name: 'Clay Day!', location: 'Art Studio', icon: '2' },
 ]
 
+const fallBackSchedule = [
+    {
+        "icon": "R",
+        "location": "Rooftop",
+        "name": "Meet our animals"
+    },
+    {
+        "icon": "2",
+        "location": "Art Studio",
+        "name": "Visit the Art Studio, find the color of the day!",
+        "startTime": ""
+    }
+]
+
 const calendarBackgroundStyle = {
 
     /* Base font size: 2vh means 2% of viewport height */
@@ -104,7 +118,7 @@ const calendarPageDotActiveStyle = {
 }
 
 
-function CalendarPage({previewDate = '', previewSchedule = null}) {
+function CalendarPage({ previewDate = '', previewSchedule = null }) {
     const [schedule, setSchedule] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
 
@@ -118,10 +132,25 @@ function CalendarPage({previewDate = '', previewSchedule = null}) {
             return;
         }
 
-        setSchedule(testSchedule); // Set initial schedule
-        // fetch('/data/today').then(res => res.json())
-        //     .then(data => setSchedule(data))
-        //     .catch(err => console.error('Error fetching schedule:', err))
+        // setSchedule(testSchedule); // Set initial schedule
+        fetchSchedule(); // Fetch real schedule from server
+
+        const eventSource = new EventSource('/listen');
+
+        eventSource.onmessage = (event) => {
+            if (event.data === 'refresh') {
+                console.log("Server said: Update!");
+                fetchSchedule(); // Re-fetch the JSON data
+            }
+        };
+
+        eventSource.onerror = () => {
+            console.error("EventSource failed. Browser will try to reconnect automatically.");
+        };
+
+        return () => {
+            eventSource.close(); // Hang up the "phone call" when the component unmounts
+        };
     }, [previewSchedule]);
 
     // Rotate pages on a fixed interval after schedule is available.
@@ -136,8 +165,46 @@ function CalendarPage({previewDate = '', previewSchedule = null}) {
         return () => clearInterval(intervalId);
     }, [schedule, pageSize, pageTimeout]);
 
+    // Poll every few minutes as a backup in case the EventSource misses an update (which can happen if the connection drops and fails to reconnect)
+    useEffect(() => {
+
+        const intervalId = setInterval(() => {
+            fetchSchedule();
+        }, 5 * 60 * 1000); // Every 5 minutes
+
+        return () => clearInterval(intervalId);
+    }, []);
+
+    async function fetchSchedule() {
+
+        let todaySchedule = [];
+
+        await fetch('/data/today').then(res => res.json())
+            .then((today) => {
+                console.log('Fetched today data:', today);
+                todaySchedule = today.data
+            })
+            .catch(err => console.error('Error fetching schedule:', err))
+
+
+        console.log('Fetched schedule:', todaySchedule);
+
+        if (todaySchedule.length == 0) {
+            console.warn('Schedule is empty or failed to load, using default data');
+            await fetch('/data/default').then(res => res.json())
+                .then(defaultData => todaySchedule = defaultData.data)
+                .catch(err => console.error('Error fetching default data:', err))
+        }
+        if (todaySchedule.length == 0) {
+            console.warn('Default data is also empty or failed to load, using hardcoded fallback schedule');
+            todaySchedule = fallBackSchedule;
+        }
+
+        setSchedule(todaySchedule);
+    }
+
     console.log("Date:", typeof previewDate, previewDate);
-    console.log("Programs:", typeof previewSchedule, previewSchedule);
+    console.log("Programs:", typeof schedule, schedule);
 
     return (
         <div style={centerPageStyle}>
@@ -157,13 +224,17 @@ function CalendarPage({previewDate = '', previewSchedule = null}) {
                                     </div>
                                 </div>
                             ))}
-                            <div style={calendarPageDotsAreaStyle}>
-                                <div style={calendarPageDotsContainerStyle}>
-                                    {Array.from({ length: Math.ceil(schedule.length / pageSize) }, (_, i) => (
-                                        <span key={i} style={i === pageIndex ? calendarPageDotActiveStyle : calendarPageDotStyle} />
-                                    ))}
+                            {schedule.length > pageSize ? (
+                                <div style={calendarPageDotsAreaStyle}>
+                                    <div style={calendarPageDotsContainerStyle}>
+                                        {Array.from({ length: Math.ceil(schedule.length / pageSize) }, (_, i) => (
+                                            <span key={i} style={i === pageIndex ? calendarPageDotActiveStyle : calendarPageDotStyle} />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            ) : ""
+                            }
+
                         </div>
 
                     ) : (
@@ -182,7 +253,7 @@ function buildTimeAndLocationString(program) {
     if (program.allDay) {
         sections.push('All Day');
     }
-    else if (program.startTime  && program.endTime) {
+    else if (program.startTime && program.endTime) {
         sections.push(`${program.startTime} – ${program.endTime}`);
     } else if (program.startTime) {
         sections.push(program.startTime);

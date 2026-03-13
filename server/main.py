@@ -2,7 +2,8 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request, send_from_directory, send_file, Response
+import queue
 from werkzeug.exceptions import BadRequest, NotFound
 
 # Get the base directory
@@ -12,6 +13,26 @@ app = Flask(__name__, static_folder=str(BASE_DIR / "editor" / "dist"), static_ur
 # Configuration
 DATA_DIR = Path("./data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DEFAULT_SCHEDULE_PATH = DATA_DIR / "default" / "default-schedule.json"
+
+
+# A list of queues for all connected kiosk clients
+announcements = []
+
+@app.route('/listen')
+def listen():
+    def stream():
+        q = queue.Queue()
+        announcements.append(q)
+        try:
+            while True:
+                msg = q.get()  # This waits until a message is put in the queue
+                yield f"data: {msg}\n\n"
+        except GeneratorExit: # Happens when the client closes the tab
+            announcements.remove(q)
+
+    return Response(stream(), mimetype='text/event-stream')
 
 
 def get_data_path(year, day):
@@ -43,6 +64,56 @@ def save_day_data(year, day, data):
         return True
     except IOError:
         return False
+    
+def load_day_default():
+    """Load default data for a day (e.g. an empty schedule template)."""
+    try:
+        with open(DEFAULT_SCHEDULE_PATH, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+    
+def save_day_default(data):
+    """Save default data for a day (e.g. an empty schedule template)."""
+    try:
+        with open(DEFAULT_SCHEDULE_PATH, 'w') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except IOError:
+        return False
+    
+
+@app.route('/data/default', methods=['GET'])
+def get_default():
+    """Get default schedule template."""
+    data = load_day_default()
+    if data is None:
+        return jsonify({"error": "No default data found"}), 404
+    
+    return jsonify({"data": data}), 200
+
+@app.route('/data/default', methods=['POST', 'PUT'])
+def edit_default():
+    """Create or update default schedule template.
+    
+    Expected JSON body: The default schedule data to save
+    """
+    try:
+        data = request.get_json()
+    except BadRequest:
+        return jsonify({"error": "Invalid JSON in request body"}), 400
+    
+    if data is None:
+        return jsonify({"error": "Request body must contain JSON"}), 400
+    
+    success = save_day_default(data)
+    if not success:
+        return jsonify({"error": "Failed to save default data"}), 500
+    
+    for q in announcements:
+        q.put("refresh") 
+    
+    return jsonify({"message": "Default data saved successfully", "data": data}), 201
 
 
 @app.route('/data/today', methods=['GET'])
@@ -103,6 +174,9 @@ def edit_day(date):
     success = save_day_data(year, date, data)
     if not success:
         return jsonify({"error": "Failed to save data"}), 500
+    
+    for q in announcements:
+        q.put("refresh") 
     
     return jsonify({"message": "Data saved successfully", "date": date, "data": data}), 201
 
